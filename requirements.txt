@@ -1,0 +1,7 @@
+Django==5.2.8
+psycopg2-binary==2.9.11
+python-dotenv==1.2.1
+polars==1.35.2
+pyarrow==22.0.0
+openai==2.8.0
+
