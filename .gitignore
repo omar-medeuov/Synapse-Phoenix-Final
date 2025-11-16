@@ -111,6 +111,3 @@ dmypy.json
 
 # Project specific
 *.parquet
-!example_dataset.parquet
-
-.parquet
