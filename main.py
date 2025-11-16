@@ -202,6 +202,37 @@ def execute_sql_query(sql_query):
         raise Exception(f"Database error: {str(e)}")
 
 
+def format_results_for_analysis(columns, rows):
+    """
+    Format query results as text for OpenAI analysis.
+    Returns a string representation of the data.
+    """
+    if not columns:
+        return "No columns returned."
+    
+    if not rows:
+        return "Query executed successfully. No rows returned."
+    
+    # Format as a simple table-like structure
+    result = f"Query Results ({len(rows)} row{'s' if len(rows) != 1 else ''}):\n\n"
+    
+    # Header
+    result += " | ".join(str(col) for col in columns) + "\n"
+    result += "-" * (sum(len(str(col)) for col in columns) + 3 * (len(columns) - 1)) + "\n"
+    
+    # Rows (limit to first 100 rows for analysis to avoid token limits)
+    max_rows_for_analysis = 100
+    rows_to_analyze = rows[:max_rows_for_analysis]
+    
+    for row in rows_to_analyze:
+        result += " | ".join(str(value) if value is not None else "NULL" for value in row) + "\n"
+    
+    if len(rows) > max_rows_for_analysis:
+        result += f"\n... (showing first {max_rows_for_analysis} of {len(rows)} rows)\n"
+    
+    return result
+
+
 def format_results(columns, rows):
     """
     Format query results for display in terminal.
@@ -250,6 +281,48 @@ def format_results(columns, rows):
     result += f"\n{'=' * len(header)}\n"
     
     return result
+
+
+def analyze_results(client, original_prompt, sql_query, columns, rows):
+    """
+    Send SQL query results to OpenAI for analysis.
+    Returns analysis text.
+    """
+    # Format results for analysis
+    results_text = format_results_for_analysis(columns, rows)
+    
+    # Create analysis prompt
+    analysis_prompt = f"""Please analyze the following SQL query results and provide insights.
+
+Original user request: {original_prompt}
+
+SQL Query executed:
+{sql_query}
+
+Query Results:
+{results_text}
+
+Please provide:
+1. A brief summary of what the data shows
+2. Key insights or patterns you notice
+3. Any notable observations or trends
+4. Recommendations or conclusions based on the data
+
+Be concise but informative. Focus on actionable insights."""
+    
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a data analyst. Analyze SQL query results and provide clear, actionable insights."},
+                {"role": "user", "content": analysis_prompt}
+            ],
+            temperature=0.7,
+        )
+        
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"Error generating analysis: {str(e)}"
 
 
 def main():
@@ -316,6 +389,19 @@ def main():
             # Format and display results
             results = format_results(columns, rows)
             print(results)
+            
+            # Analyze results using OpenAI
+            if columns and rows:
+                print("\n" + "=" * 60)
+                print("Analyzing results...\n")
+                try:
+                    analysis = analyze_results(client, test_message, sql_query, columns, rows)
+                    print("Analysis:\n")
+                    print("-" * 60)
+                    print(analysis)
+                    print("-" * 60)
+                except Exception as analysis_error:
+                    print(f"Warning: Could not generate analysis: {analysis_error}", file=sys.stderr)
             
         except Exception as db_error:
             print(f"Error executing SQL query: {db_error}", file=sys.stderr)

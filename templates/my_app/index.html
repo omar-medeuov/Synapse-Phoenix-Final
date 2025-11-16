@@ -109,6 +109,16 @@
             color: #666;
             font-style: italic;
         }
+        .analysis-content {
+            background-color: #e7f3ff;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            border-left: 4px solid #28a745;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            line-height: 1.6;
+        }
     </style>
 </head>
 <body>
@@ -138,6 +148,11 @@
     <div class="results-container">
         <span class="sql-label">Generated SQL Query:</span>
         <div class="sql-query">{{ sql_query }}</div>
+        
+        {% if analysis %}
+        <span class="sql-label">Analysis:</span>
+        <div class="analysis-content">{{ analysis|linebreaks }}</div>
+        {% endif %}
         
         {% if columns and rows %}
         <span class="sql-label">Query Results:</span>

@@ -91,6 +91,79 @@ def execute_sql_query(sql_query):
         raise Exception(f"Database error: {str(e)}")
 
 
+def format_results_for_analysis(columns, rows):
+    """
+    Format query results as text for OpenAI analysis.
+    Returns a string representation of the data.
+    """
+    if not columns:
+        return "No columns returned."
+    
+    if not rows:
+        return "Query executed successfully. No rows returned."
+    
+    # Format as a simple table-like structure
+    result = f"Query Results ({len(rows)} row{'s' if len(rows) != 1 else ''}):\n\n"
+    
+    # Header
+    result += " | ".join(str(col) for col in columns) + "\n"
+    result += "-" * (sum(len(str(col)) for col in columns) + 3 * (len(columns) - 1)) + "\n"
+    
+    # Rows (limit to first 100 rows for analysis to avoid token limits)
+    max_rows_for_analysis = 100
+    rows_to_analyze = rows[:max_rows_for_analysis]
+    
+    for row in rows_to_analyze:
+        result += " | ".join(str(value) if value is not None else "NULL" for value in row) + "\n"
+    
+    if len(rows) > max_rows_for_analysis:
+        result += f"\n... (showing first {max_rows_for_analysis} of {len(rows)} rows)\n"
+    
+    return result
+
+
+def analyze_results(client, original_prompt, sql_query, columns, rows):
+    """
+    Send SQL query results to OpenAI for analysis.
+    Returns analysis text.
+    """
+    # Format results for analysis
+    results_text = format_results_for_analysis(columns, rows)
+    
+    # Create analysis prompt
+    analysis_prompt = f"""Please analyze the following SQL query results and provide insights.
+
+Original user request: {original_prompt}
+
+SQL Query executed:
+{sql_query}
+
+Query Results:
+{results_text}
+
+Please provide:
+1. A brief summary of what the data shows
+2. Key insights or patterns you notice
+3. Any notable observations or trends
+4. Recommendations or conclusions based on the data
+
+Be concise but informative. Focus on actionable insights."""
+    
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a data analyst. Analyze SQL query results and provide clear, actionable insights."},
+                {"role": "user", "content": analysis_prompt}
+            ],
+            temperature=0.7,
+        )
+        
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"Error generating analysis: {str(e)}"
+
+
 def index(request):
     """
     Main index page with form for SQL query generation.
@@ -101,6 +174,7 @@ def index(request):
         'columns': None,
         'rows': None,
         'prompt': None,
+        'analysis': None,
     }
     
     if request.method == 'POST':
@@ -162,6 +236,16 @@ def index(request):
                 columns, rows = execute_sql_query(sql_query)
                 context['columns'] = columns
                 context['rows'] = rows
+                
+                # Analyze results using OpenAI
+                if columns and rows:
+                    try:
+                        analysis = analyze_results(client, prompt, sql_query, columns, rows)
+                        context['analysis'] = analysis
+                    except Exception as analysis_error:
+                        # Don't fail if analysis fails, just log it
+                        context['analysis'] = f"Could not generate analysis: {str(analysis_error)}"
+                        
             except Exception as db_error:
                 context['error'] = f"Database Error: {str(db_error)}"
                 return render(request, 'my_app/index.html', context)
