@@ -1,0 +1,19 @@
+[Unit]
+Description=gunicorn daemon for the_project Django application
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/path/to/SYNAPSEPARQUET
+Environment="PATH=/path/to/SYNAPSEPARQUET/.venv/bin"
+ExecStart=/path/to/SYNAPSEPARQUET/.venv/bin/gunicorn \
+    --config /path/to/SYNAPSEPARQUET/gunicorn_config.py \
+    the_project.wsgi:application
+
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+

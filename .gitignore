@@ -111,3 +111,9 @@ dmypy.json
 
 # Project specific
 *.parquet
+
+# Production files
+staticfiles/
+media/
+logs/
+*.log
